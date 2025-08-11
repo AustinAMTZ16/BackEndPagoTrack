@@ -45,7 +45,7 @@ class RemesaModel
                         t.DocSAP,
                         t.TipoTramite,
                         t.NoTramite,
-                        t.Dependencia,
+                        t.Secretaria AS Dependencia,
                         t.Proveedor,
                         t.Concepto,
                         t.Importe,
@@ -58,8 +58,10 @@ class RemesaModel
                     FROM (
                         SELECT 
                             CG.*,
+                            EA.*,
                             SUBSTRING_INDEX(CG.RemesaNumero, '-', 2) AS Grupo
                         FROM ConsentradoGeneralTramites CG
+                        INNER JOIN EnlacesAdministrativos EA ON CG.DependenciaID = EA.EnlaceID 
                         WHERE CG.RemesaNumero IS NOT NULL
                     ) t
                             INNER JOIN InicioSesion i ON t.AnalistaID = i.InicioSesionID

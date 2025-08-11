@@ -19,7 +19,7 @@ class LoginModel {
     }
     // Iniciar sesión
     public function login($data) {
-        $query = "SELECT InicioSesionID, NickUser, NombreUser, ApellidoUser, CorreoUser, RolUser, DepartamentoUser FROM InicioSesion WHERE CorreoUser = :CorreoUser AND ClaveUser = :ClaveUser";
+        $query = "SELECT InicioSesionID, NickUser, NombreUser, ApellidoUser, CorreoUser, RolUser, DepartamentoUser, FirmaAutorizacion  FROM InicioSesion WHERE CorreoUser = :CorreoUser AND ClaveUser = :ClaveUser";
         $stmt = $this->conn->prepare($query);
 
         $stmt->bindParam(':CorreoUser', $data['CorreoUser']);

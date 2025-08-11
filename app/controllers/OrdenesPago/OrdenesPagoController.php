@@ -79,5 +79,16 @@ class OrdenesPagoController {
         $result = $this->model->obtenerReportePrioridadTramites($data);
         return $result;
     }
+
+    // ConsultarTramitesRezagados
+    public function consultarTramitesRezagados($data) {
+        $result = $this->model->consultarTramitesRezagados($data);
+        return $result;
+    }
+    // Estimación de liquidez
+    public function estimacionLiquidez($data) {
+        $result = $this->model->estimacionLiquidez($data);
+        return $result; 
+    }
 }
 ?>

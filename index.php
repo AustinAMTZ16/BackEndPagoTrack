@@ -329,8 +329,41 @@ function handlePostRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron reporte de prioridad de trámites.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
-
+        break;
+        case 'consultarTramitesRezagados':
+            if (!empty($data)) {
+                global $controllerTramite;
+                $respuesta = $controllerTramite->consultarTramitesRezagados((array) $data);
+            } else {
+                echo "Datos no proporcionados";
+                exit;
+            }
+            if ($respuesta) {
+                http_response_code(200);
+                echo json_encode(array('message' => 'Consulta de trámites rezagados.', 'data' => $respuesta), JSON_UNESCAPED_UNICODE);
+            } else {
+                http_response_code(404);
+                echo json_encode(array('message' => 'No se encontraron trámites rezagados.'), JSON_UNESCAPED_UNICODE);
+            }
+            exit;
+        break;
+        case 'estimacionLiquidez':
+            if (!empty($data)) {
+                global $controllerTramite;
+                $respuesta = $controllerTramite->estimacionLiquidez((array) $data);
+            } else {
+                echo "Datos no proporcionados";
+                exit;
+            }
+            if ($respuesta) {
+                http_response_code(200);
+                echo json_encode(array('message' => 'Estimación de liquidez.', 'data' => $respuesta), JSON_UNESCAPED_UNICODE);
+            } else {
+                http_response_code(404);
+                echo json_encode(array('message' => 'No se encontraron estimación de liquidez.'), JSON_UNESCAPED_UNICODE);
+            }
+            exit;
+        break;
         default:
             http_response_code(404);
             echo json_encode(['Message' => 'Acción POST desconocida.'], JSON_UNESCAPED_UNICODE);

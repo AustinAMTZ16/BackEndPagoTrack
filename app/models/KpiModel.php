@@ -28,10 +28,25 @@ class KpiModel
             // Función para obtener registros
             function obtenerRegistros($pdo, $condicion)
             {
-                $sql = "SELECT ct.ID_CONTRATO,ct.Estatus,ct.FechaRecepcion,ct.FechaLimite,is2.NombreUser,is2.ApellidoUser,ct.Comentarios,ct.TipoTramite,ct.Dependencia,ct.Proveedor,ct.Importe,ct.Concepto
+                $sql = "SELECT 
+                        ct.ID_CONTRATO,
+                        ct.Estatus,
+                        ct.FechaRecepcion,
+                        ct.FechaLimite,
+                        is2.NombreUser,
+                        is2.ApellidoUser,
+                        ct.Comentarios,
+                        ct.TipoTramite,
+                        EA.Secretaria AS Dependencia,
+                        ct.Proveedor,
+                        ct.Importe,
+                        ct.Concepto
                         FROM ConsentradoGeneralTramites ct
-                        INNER JOIN InicioSesion is2 
+                        INNER JOIN InicioSesion is2                         
                         ON ct.AnalistaID  = is2.InicioSesionID 
+                        JOIN
+                        	EnlacesAdministrativos EA 
+                        ON EA.EnlaceID = ct.DependenciaID
                         WHERE DATE(FechaLimite) $condicion CURDATE()
                         AND Estatus IN ('Turnado', 'Observaciones', 'Devuelto', 'DevueltoOrdenPago')";
                 $stmt = $pdo->prepare($sql);
