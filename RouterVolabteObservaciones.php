@@ -144,12 +144,12 @@ function handlePostRequest($action, $data)
                 echo json_encode(['error' => true, 'message' => $e->getMessage()]);
             }
             exit;
-            break;
+        break;
         default:
             http_response_code(404);
             echo json_encode(['Message' => 'Acción POST desconocida.'], JSON_UNESCAPED_UNICODE);
             exit;
-            break;
+        break;
     }
 }
 // Función para manejar las solicitudes GET

@@ -39,6 +39,7 @@ class VolanteObservacionesModel extends ORM_VolanteObservaciones
                 cgt.Importe,
                 cgt.TipoTramite,
                 cgt.NoTramite,
+                cgt.FechaRecepcion,
                 vo.GlosadorNombre,
                 CONCAT(is2.NombreUser, ' ', is2.ApellidoUser) AS GlosadorNombreCompleto,
                 ce.ErrorID,
@@ -50,6 +51,7 @@ class VolanteObservacionesModel extends ORM_VolanteObservaciones
                 ea.Secretaria AS Dependencia, 
                 ea.Nombre, 
                 ea.Correo,
+                ea.AmbitoAtencion,
                 vo.EstatusVolante,
                 vo.FundamentoLegal AS FundamentoLegalVolante,
                 vo.FirmaAutorizacion

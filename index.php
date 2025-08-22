@@ -387,7 +387,20 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron tramites.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
+        break;
+        case 'obtenerTramitesConAnalistaTodo':
+            // Declarar como global
+            global $controllerTramite;
+            $respuesta = $controllerTramite->obtenerTramitesConAnalistaTodo();
+            if ($respuesta) {
+                http_response_code(200);
+                echo json_encode(array('message' => 'Listado de trámites con analista.', 'data' => $respuesta), JSON_UNESCAPED_UNICODE);
+            } else {
+                http_response_code(404);
+                echo json_encode(array('message' => 'No se encontraron trámites con analista.'), JSON_UNESCAPED_UNICODE);
+            }
+            exit;
+        break;
         case 'getRemesas':
             // Declarar como global
             global $controllerRemesa;
@@ -400,7 +413,7 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron remesas.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
+        break;
         case 'checkUserExistsUser':
             // Declarar como global
             global $controllerLogin;
@@ -413,7 +426,7 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'Usuario no existe.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
+        break;
         case 'getSeguimientoTramites':
             // Declarar como global
             global $controllerTramite;
@@ -426,7 +439,7 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron seguimiento de trámites.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
+        break;
         case 'getHistoricoMes':
             // Declarar como global
             global $controllerTramite;
@@ -439,7 +452,7 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron historico de trámites por mes.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
+        break;
         case 'getConteoEstatus':
             // Declarar como global
             global $controllerTramite;
@@ -452,7 +465,7 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron conteo de estatus.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
+        break;
         case 'getReporteEstatusComentarios':
             // Declarar como global
             global $controllerTramite;
@@ -465,7 +478,7 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron reporte de estatus de comentarios.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
+        break;
         case 'getRemesasWithTramites':
             // Declarar como global
             global $controllerRemesa;
@@ -478,7 +491,7 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron remesas con trámites.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
+        break;
         case 'obtenerKPI':
             // Declarar como global
             global $controllerKpi;
@@ -491,7 +504,7 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron KPI.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
+        break;
         case 'listarOficios':
             // Declarar como global
             global $controllerCorrespondencia;
@@ -504,7 +517,7 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron oficios.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
+        break;
         case 'getListaRemesas':
             // Declarar como global
             global $controllerRemesa;
@@ -517,7 +530,7 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron remesas.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
+        break;
         case 'listarRegistroOficios':
             // Declarar como global
             global $controllerOficios;
@@ -530,13 +543,12 @@ function handleGetRequest($action, $data)
                 echo json_encode(array('message' => 'No se encontraron registros de oficios.'), JSON_UNESCAPED_UNICODE);
             }
             exit;
-            break;
-
+        break;
         default:
             http_response_code(404);
             echo json_encode(['Message' => 'Acción GET desconocida.'], JSON_UNESCAPED_UNICODE);
             exit;
-            break;
+        break;
     }
 }
 // Función para manejar las solicitudes PATCH

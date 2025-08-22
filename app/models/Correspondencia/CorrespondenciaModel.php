@@ -237,6 +237,20 @@ class CorrespondenciaModel
             date_default_timezone_set('America/Mexico_City');
             $fechaActual = date('Y-m-d H:i:s');
 
+            $parseDate = function ($val) {
+                if ($val === '' || $val === null) return null;
+                $dt = DateTime::createFromFormat('Y-m-d', $val);
+                return $dt ? $dt->format('Y-m-d') : null;
+            };
+
+            $parseDateTime = function ($val) {
+                if ($val === '' || $val === null) return null;
+                $dt = DateTime::createFromFormat('Y-m-d\TH:i', $val)
+                    ?: DateTime::createFromFormat('Y-m-d\TH:i:s', $val)
+                    ?: DateTime::createFromFormat('Y-m-d H:i:s', $val)
+                    ?: DateTime::createFromFormat('Y-m-d H:i', $val);
+                return $dt ? $dt->format('Y-m-d H:i:s') : null;
+            };
             // Validar ID obligatorio
             if (!isset($data['ID']) || empty($data['ID'])) {
                 http_response_code(400);
@@ -299,32 +313,49 @@ class CorrespondenciaModel
                 'UsuarioRegistro' => ['tipo' => 'string', 'requerido' => false],
                 'Comentarios' => ['tipo' => 'json', 'requerido' => false],
                 'ArchivoScaneado' => ['tipo' => 'string', 'requerido' => false],
-                'FechaEntregaAcuse' => ['tipo' => 'date', 'requerido' => false]
+                'FechaEntregaAcuse' => ['tipo' => 'date', 'requerido' => false],
+                // Corrige FKOficio (no es date)
+                'FKOficio' => ['tipo' => 'int', 'requerido' => false],
+
+                // Los siguientes inputs son <input type="datetime-local"> ==> 'datetime'
+                'FechaLimitePago' => ['tipo' => 'datetime', 'requerido' => false],
+                'FechaEntregaDGAnalista' => ['tipo' => 'datetime', 'requerido' => false],
+                'FechaRecepcionDependencia' => ['tipo' => 'datetime', 'requerido' => false],
+                'FechaEntregaAnalistaOperador' => ['tipo' => 'datetime', 'requerido' => false],
             ];
 
             // ✅ 3. Validación de campos requeridos
             foreach ($camposValidos as $campo => $config) {
-                if (
-                    isset($config['requerido']) && $config['requerido'] &&
-                    (!isset($data[$campo]) || empty($data[$campo]))
-                ) {
-                    http_response_code(400);
-                    return json_encode(["error" => "El campo $campo es requerido"]);
-                }
+                if (!array_key_exists($campo, $data)) continue; // PATCH real: si no viene, no lo tocamos
+                if ($config['tipo'] === 'date')       $data[$campo] = $parseDate($data[$campo] ?? null);
+                if ($config['tipo'] === 'datetime')   $data[$campo] = $parseDateTime($data[$campo] ?? null);
+                if ($config['tipo'] === 'int')        $data[$campo] = ($data[$campo] === '' || $data[$campo] === null) ? null : (int)$data[$campo];
             }
+
 
             // ✅ 4. Normalización de fechas
             $camposFecha = ['FechaRecepcion', 'FechaVencimiento', 'FechaRetroactiva', 'FechaEntregaAcuse'];
-            foreach ($camposFecha as $campo) {
-                if (isset($data[$campo])) {
-                    if ($data[$campo] === '' || $data[$campo] === null) {
-                        $data[$campo] = null;
-                    } else {
-                        $date = DateTime::createFromFormat('Y-m-d\TH:i', $data[$campo])
-                            ?: DateTime::createFromFormat('Y-m-d H:i:s', $data[$campo])
-                            ?: DateTime::createFromFormat('Y-m-d', $data[$campo]);
-                        $data[$campo] = $date ? $date->format('Y-m-d') : null;
-                    }
+            // foreach ($camposFecha as $campo) {
+            //     if (isset($data[$campo])) {
+            //         if ($data[$campo] === '' || $data[$campo] === null) {
+            //             $data[$campo] = null;
+            //         } else {
+            //             $date = DateTime::createFromFormat('Y-m-d\TH:i', $data[$campo])
+            //                 ?: DateTime::createFromFormat('Y-m-d H:i:s', $data[$campo])
+            //                 ?: DateTime::createFromFormat('Y-m-d', $data[$campo]);
+            //             $data[$campo] = $date ? $date->format('Y-m-d') : null;
+            //         }
+            //     }
+            // }
+            foreach ($camposValidos as $campo => $config) {
+                if (!array_key_exists($campo, $data)) continue; // PATCH: si no lo mandan, no tocamos
+                if ($config['tipo'] === 'date') {
+                    $data[$campo] = $parseDate($data[$campo] ?? null);
+                } elseif ($config['tipo'] === 'datetime') {
+                    $data[$campo] = $parseDateTime($data[$campo] ?? null);
+                } elseif ($config['tipo'] === 'int') {
+                    // '' => NULL, de lo contrario castea a int
+                    $data[$campo] = ($data[$campo] === '' || $data[$campo] === null) ? null : (int)$data[$campo];
                 }
             }
 
@@ -380,11 +411,11 @@ class CorrespondenciaModel
                     switch ($config['tipo']) {
                         case 'date':
                         case 'datetime':
-                            if ($valor === null) {
+                            if ($valor === null || $valor === '') {
                                 $setClauses[] = "$campo = NULL";
                             } else {
                                 $setClauses[] = "$campo = :$campo";
-                                $params[$campo] = $valor;
+                                $params[$campo] = $valor; // ya normalizado a 'Y-m-d' o 'Y-m-d H:i:s'
                             }
                             break;
 

@@ -225,7 +225,7 @@ class VolanteObservacionesController
                                             <br />
                                         <strong style="color: #000;">Folio Volante:</strong> {$volante['FolioVolante']}
                                             <br />
-                                        <strong style="color: #000;">Fecha de Emisión:</strong> {$volante['FechaEmision']}
+                                        <strong style="color: #000;">Fecha de Creación:</strong> {$volante['FechaEmision']}
                                             <br />
                                         <strong style="color: #000;">Fecha Límite de Solventación:</strong> {$volante['FechaLimiteSolventacion']}
                                     </td>
@@ -263,7 +263,8 @@ class VolanteObservacionesController
                                 <tr>
                                     <td style="padding: 0 0 0 55px;">
                                         <p style="color: rgb(52, 58, 64); font-family: Lato, Arial, sans-serif; font-size: 8px; margin: 0; padding: 0;">
-                                        <strong>CONCEPTO:</strong> {$volante['Concepto']}
+                                        <strong>CONCEPTO:</strong> {$volante['Concepto']} <br>
+                                        <strong>FECHA RECEPCIÓN:</strong> {$volante['FechaRecepcion']}
                                         </p>
                                     </td>
                                 </tr>
@@ -363,8 +364,20 @@ class VolanteObservacionesController
             throw new InvalidArgumentException("Se requiere 'FolioVolante'.", 400);
         }
         $fechaEmision = new DateTime('now', new DateTimeZone('America/Mexico_City'));
+        // $fechaEmision = DateTime::createFromFormat('Y-m-d H:i:s', '2025-08-15 14:21:04');
         $fechaLimiteStr = $this->calcularFechaLimite($fechaEmision->format('Y-m-d H:i:s'));
-        // $fechaLimiteStr = $this->calcularFechaLimite('2025-08-08 10:40:00');
+        // $fechaLimiteStr = $this->calcularFechaLimite('2025-08-15 14:21:04'); // 2025-08-18 14:21:04
+
+
+        $ccSECATI = 'doris.torres@ayuntamientopuebla.gob.mx,concepcion.soriano@ayuntamientopuebla.gob.mx,agustin.martinez@ayuntamientopuebla.gob.mx,carlos.pola@ayuntamientopuebla.gob.mx,dpva.observaciones@ayuntamientopuebla.gob.mx';
+        $ccOTROS = 'doris.torres@ayuntamientopuebla.gob.mx,concepcion.soriano@ayuntamientopuebla.gob.mx,agustin.martinez@ayuntamientopuebla.gob.mx,carlos.pola@ayuntamientopuebla.gob.mx';
+
+        // $ccSECATI = 'luis.silva@ayuntamientopuebla.gob.mx';
+        // $ccOTROS = 'doris.torres@ayuntamientopuebla.gob.mx';
+
+        $ccEmail = '';
+
+
         // 1. Enviar el correo usando la nueva API
         try {
             // Si la petición no fue exitosa (código de respuesta no es 2xx), Guzzle lanzará una excepción
@@ -374,6 +387,7 @@ class VolanteObservacionesController
                 'EstatusVolante' => $data['EstatusVolante'] ?? 'Emitido',
                 'FirmaAutorizacion' => $data['FirmaAutorizacion'] ?? null,
                 'FechaLimiteSolventacion' =>  $fechaLimiteStr,
+
                 'FechaEmision' => $fechaEmision->format('Y-m-d H:i:s')
             ];
             $this->model->actualizarVolante($updateData);
@@ -382,6 +396,24 @@ class VolanteObservacionesController
             $volante = $this->model->generarVolanteEspecifico($data);
             if (!$volante) {
                 throw new Exception("No se encontraron datos para el folio proporcionado.", 404);
+            }
+            if (isset($volante['FechaEmision'], $volante['FechaLimiteSolventacion'])) {
+                $emision = trim((string)$volante['FechaEmision']);
+                $limite  = trim((string)$volante['FechaLimiteSolventacion']);
+
+                if ($emision === $limite) {
+                    $volante['FechaLimiteSolventacion'] = 'INMEDIATA (MISMO DÍA)';
+                }
+            }
+            if (array_key_exists('AmbitoAtencion', $volante)) {
+                // Normaliza: trim espacios y mayúsculas
+                $ambito = strtoupper(trim((string)$volante['AmbitoAtencion']));
+
+                if ($ambito === 'SECATI') {
+                    $ccEmail = $ccSECATI;
+                } else {
+                    $ccEmail = $ccOTROS;
+                }
             }
 
             // Credenciales y endpoint de la nueva API desde variables de entorno
@@ -400,12 +432,12 @@ class VolanteObservacionesController
                 'multipart' => [
                     [
                         'name'     => 'to',
-                        // 'contents' => $volante['Correo']
-                        'contents' => 'Tomar listado'
+                        'contents' => $volante['Correo']
+                        // 'contents' => 'Tomar listado'
                     ],
                     [
                         'name'     => 'cc',
-                        'contents' => 'doris.torres@ayuntamientopuebla.gob.mx,concepcion.soriano@ayuntamientopuebla.gob.mx,agustin.martinez@ayuntamientopuebla.gob.mx,carlos.pola@ayuntamientopuebla.gob.mx,eduardo.espinoza@ayuntamientopuebla.gob.mx'
+                        'contents' =>  $ccEmail
                     ],
                     [
                         'name'     => 'subject',
@@ -413,8 +445,8 @@ class VolanteObservacionesController
                     ],
                     [
                         'name'     => 'body',
-                        // 'contents' => $this->crearCuerpoHtmlCorreo($volante)
-                        'contents' => 'Mensaje de prueba para notificación de volante de observaciones. Entorno de pruebas.'
+                        'contents' => $this->crearCuerpoHtmlCorreo($volante)
+                        // 'contents' => 'Mensaje de prueba para notificación de volante de observaciones. Entorno de pruebas.'
                     ],
                     [
                         'name'     => 'altbody',
@@ -447,58 +479,82 @@ class VolanteObservacionesController
      */
     public function calcularFechaLimite(string $fechaEmisionStr): string
     {
-        // --- 1. CONFIGURACIÓN INICIAL ---
-        $diaCierre = 25;
-        $horaCorte = 15; // 3 PM
-        $zonaHoraria = new DateTimeZone('America/Mexico_City');
+        // --- Configuración ---
+        $diaCierre         = 25; // a partir de este día: "cierre"
+        $horaInicioLaboral = 9;  // 09:00
+        $horaCorte         = 15; // 15:00
+        $tz                = new DateTimeZone('America/Mexico_City');
 
-        $fechaEmision = new DateTime($fechaEmisionStr, $zonaHoraria);
-        $fechaLimite = clone $fechaEmision; // Clonamos para no modificar la fecha original
+        // Lista de días inhábiles (YYYY-mm-dd)
+        $diasInhabiles = [
+            '2025-01-01',
+            '2025-02-03',
+            '2025-03-17',
+            '2025-04-17',
+            '2025-04-18',
+            '2025-05-01',
+            '2025-05-05',
+            '2025-05-10',
+            '2025-06-15',
+            '2025-08-18',
+            '2025-09-15',
+            '2025-09-16',
+            '2025-10-12',
+            '2025-11-01',
+            '2025-11-02',
+            '2025-11-14',
+            '2025-11-17',
+            '2025-12-12',
+            '2025-12-25'
+        ];
+        $inhabilesSet = array_fill_keys($diasInhabiles, true);
 
-        // Bandera para saber si debemos ajustar la hora final a las 9 AM
-        $ajustarHoraApertura = false;
+        $emision = new DateTime($fechaEmisionStr, $tz);
+        $limite  = clone $emision;
 
-        // --- 2. DETERMINAR REGLAS BASADAS EN LA HORA Y DÍA DE EMISIÓN ---
-
-        // REGLA DE HORA: ¿La emisión fue después de la hora de corte?
-        if ((int)$fechaEmision->format('G') >= $horaCorte) {
-            $ajustarHoraApertura = true; // Marcamos que la hora final debe ser 9 AM.
-
-            // ¡Importante! Si fue tarde, el plazo empieza a contar desde el DÍA SIGUIENTE.
-            $fechaLimite->modify('+1 day');
+        // Si es "después de cierre": aquí actualmente DEVUELVES la misma fecha (respeté tu código).
+        // Si en realidad quieres 'INMEDIATA (MISMO DÍA)', cambia la siguiente línea por: return 'INMEDIATA (MISMO DÍA)';
+        if ((int)$emision->format('j') >= $diaCierre) {
+            return $fechaEmisionStr;
         }
 
-        // REGLA DE DÍA: ¿Estamos en periodo de cierre?
-        // Determina cuántos días hábiles sumar.
-        $diasHabilesASumar = ((int)$fechaEmision->format('j') >= $diaCierre) ? 1 : 2;
+        // ---- Antes de cierre: 2 días hábiles ----
+        $hora      = (int)$emision->format('G');
+        $min       = (int)$emision->format('i');
+        $seg       = (int)$emision->format('s');
+        $esLaboral = ($hora >= $horaInicioLaboral && $hora < $horaCorte);
 
-        // --- 3. CÁLCULO DE DÍAS HÁBILES ---
-
-        for ($i = 0; $i < $diasHabilesASumar; $i++) {
-            // Si no es el primer día del bucle, sumamos un día para avanzar.
-            // Si es el primer día, ya estamos posicionados correctamente (hoy o mañana).
-            // if ($i > 0) {
-            //     $fechaLimite->modify('+1 day');
-            // }
-
-            // En cada iteración, avanzamos un día.
-            $fechaLimite->modify('+1 day');
-
-            // Mientras el día sea Sábado (6) o Domingo (7), sigue sumando días.
-            while ($fechaLimite->format('N') >= 6) {
-                $fechaLimite->modify('+1 day');
+        // Helpers con fines de semana + inhábiles
+        $esNoHabil = static function (DateTime $d) use ($inhabilesSet): bool {
+            if ((int)$d->format('N') >= 6) return true;                 // Sábado(6) o Domingo(7)
+            return isset($inhabilesSet[$d->format('Y-m-d')]);            // Feriado listado
+        };
+        $aSiguienteHabil = static function (DateTime $d) use ($esNoHabil) {
+            do {
+                $d->modify('+1 day');
+            } while ($esNoHabil($d));
+        };
+        $sumarHabiles = static function (DateTime $d, int $n) use ($esNoHabil) {
+            for ($i = 0; $i < $n;) {
+                $d->modify('+1 day');
+                if (!$esNoHabil($d)) {
+                    $i++;
+                }
             }
+        };
+
+        if ($esLaboral) {
+            // +2 días hábiles, conserva hora original
+            $sumarHabiles($limite, 2);
+            $limite->setTime($hora, $min, $seg);
+        } else {
+            // Fuera de horario: siguiente hábil + 2 hábiles, 15:00
+            $aSiguienteHabil($limite);
+            $sumarHabiles($limite, 2);
+            $limite->setTime($horaCorte, 0, 0);
         }
 
-        // --- 4. AJUSTE FINAL DE LA HORA ---
-
-        if ($ajustarHoraApertura) {
-            // Si la bandera se activó, la hora de solventación es a las 9 AM.
-            $fechaLimite->setTime(15, 0, 0);
-        }
-        // Si la bandera es false, la hora original de emisión se mantiene automáticamente.
-
-        return $fechaLimite->format('Y-m-d H:i:s');
+        return $limite->format('Y-m-d H:i:s');
     }
     /**
      * Método para enviar un boletín informativo (placeholder).
@@ -566,7 +622,6 @@ class VolanteObservacionesController
             ]);
 
             return $nombreArchivo;
-
         } catch (RequestException $e) {
             // Captura errores específicos de Guzzle (red, respuestas 4xx, 5xx)
             error_log("API Error: {$e->getMessage()}");

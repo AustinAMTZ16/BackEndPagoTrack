@@ -19,7 +19,11 @@ class OrdenesPagoController {
         $result = $this->model->obtenerTramitesConAnalista();
         return $result;
     }
-
+    // obtener todos los trámites + nombre del analista (TODO)
+    public function obtenerTramitesConAnalistaTodo() {
+        $result = $this->model->obtenerTramitesConAnalistaTodo();
+        return $result;
+    }
     // Actualiza el estado de un trámite + comentarios
     public function updateTramite($data) {
         $result = $this->model->actualizarEstadoTramite($data);

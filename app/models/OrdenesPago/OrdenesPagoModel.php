@@ -105,7 +105,7 @@ class OrdenesPagoModel
             throw new Exception("Error general en crearTramite: " . $e->getMessage());
         }
     }
-    // Obtener todos los trámites + nombre del analista
+    // Obtener todos los trámites + nombre del analista (solo mes en curso)
     public function obtenerTramitesConAnalista()
     {
         try {
@@ -114,86 +114,187 @@ class OrdenesPagoModel
                 throw new Exception("No hay conexión activa con la base de datos.");
             }
             $query = "
-                        -- Usamos dos CTEs: una para tu lógica original y otra para el nuevo conteo.
+                        -- Usamos CTEs para (1) último volante, (2) pendientes (sin 'Vencido') y (3) vencidos
                         WITH 
-                            -- Paso 1: Tu CTE original para identificar el volante más reciente.
-                            VolantesRecientes AS (
-                                SELECT
-                                    FolioVolante,
-                                    TramiteID,
-                                    ROW_NUMBER() OVER(PARTITION BY TramiteID ORDER BY FechaEmision DESC) as rn
-                                FROM
-                                    VolantesObservaciones
-                            ),
-                            -- AÑADIDO: Paso 1.5: Nueva CTE para contar los volantes por solventar por cada trámite.
-                            ConteoVolantes AS (
-                                SELECT
-                                    TramiteID,
-                                    -- Contamos solo los volantes con los estatus que nos interesan.
-                                    COUNT(*) as TotalPorSolventar
-                                FROM
-                                    VolantesObservaciones
-                                WHERE
-                                    EstatusVolante IN ('Creado', 'Emitido', 'Vencido')
-                                GROUP BY
-                                    TramiteID
-                            )
-                        -- Paso 2: Hacemos la consulta principal.
+                        VolantesRecientes AS (
+                            SELECT
+                                FolioVolante,
+                                TramiteID,
+                                ROW_NUMBER() OVER (PARTITION BY TramiteID ORDER BY FechaEmision DESC) AS rn
+                            FROM VolantesObservaciones
+                        ),
+                        -- Pendientes reales: SOLO 'Creado' y 'Emitido' (excluye 'Vencido')
+                        ConteoVolantesPendientes AS (
+                            SELECT
+                                TramiteID,
+                                COUNT(*) AS TotalPorSolventar
+                            FROM VolantesObservaciones
+                            WHERE EstatusVolante IN ('Creado', 'Emitido')
+                            GROUP BY TramiteID
+                        ),
+                        -- Vencidos (para la bandera y, opcionalmente, el conteo)
+                        ConteoVolantesVencidos AS (
+                            SELECT
+                                TramiteID,
+                                COUNT(*) AS TotalVencidos
+                            FROM VolantesObservaciones
+                            WHERE EstatusVolante = 'Vencido'
+                            GROUP BY TramiteID
+                        )
+
                         SELECT 
                             ISS.NombreUser, 
                             ISS.ApellidoUser,                              
                             CT.ID_CONTRATO,
-							CT.Mes,
-							CT.FechaRecepcion,
-							CT.TipoTramite,
-							CT.Proveedor,
-							CT.Concepto,
-							CT.Importe,
-							CT.Estatus,
-							CT.Comentarios,
-							CT.Fondo,
-							CT.FechaLimite,
-							CT.FechaTurnado,
-							CT.FechaTurnadoEntrega,
-							CT.FechaDevuelto,
-							CT.FechaRemesa,
-							CT.FechaRemesaAprobada,
-							CT.AnalistaID,
-							CT.RemesaNumero,
-							CT.DocSAP,
-							CT.IntegraSAP,
-							CT.OfPeticion,
-							CT.NoTramite,
-							CT.DoctacionAnexo,
-							CT.Analista,
-							CT.FechaLimitePago,
-							CT.FK_SRF,
-							CT.FechaCreacion,
-							CT.DependenciaID, 	
+                            CT.Mes,
+                            CT.FechaRecepcion,
+                            CT.TipoTramite,
+                            CT.Proveedor,
+                            CT.Concepto,
+                            CT.Importe,
+                            CT.Estatus,
+                            CT.Comentarios,
+                            CT.Fondo,
+                            CT.FechaLimite,
+                            CT.FechaTurnado,
+                            CT.FechaTurnadoEntrega,
+                            CT.FechaDevuelto,
+                            CT.FechaRemesa,
+                            CT.FechaRemesaAprobada,
+                            CT.AnalistaID,
+                            CT.RemesaNumero,
+                            CT.DocSAP,
+                            CT.IntegraSAP,
+                            CT.OfPeticion,
+                            CT.NoTramite,
+                            CT.DoctacionAnexo,
+                            CT.Analista,
+                            CT.FechaLimitePago,
+                            CT.FK_SRF,
+                            CT.FechaCreacion,
+                            CT.DependenciaID, 	
                             CT.NumeroObra,						
-							EA.Secretaria as Dependencia,							
+                            EA.Secretaria AS Dependencia,							
                             VR.FolioVolante,                            
-                            CASE
-                                WHEN VR.FolioVolante IS NOT NULL THEN 1 -- Se usa 1 y 0 para que coincida con el tipo de dato bool/int
-                                ELSE 0
-                            END AS FlagVolante,
-                            -- AÑADIDO: Seleccionamos el nuevo campo. COALESCE se usa para mostrar 0 si no hay volantes que contar.
-                            COALESCE(CV.TotalPorSolventar, 0) AS VolantesPorSolventar
-                        FROM 
-                            ConsentradoGeneralTramites CT
-                        INNER JOIN 
-                            InicioSesion ISS ON CT.AnalistaID = ISS.InicioSesionID
-                        JOIN
-                        	EnlacesAdministrativos EA ON EA.EnlaceID = CT.DependenciaID
-                        LEFT JOIN
-                            -- Nos unimos a la CTE de volantes recientes (tu lógica original).
-                            VolantesRecientes VR ON CT.ID_CONTRATO = VR.TramiteID
-                            AND VR.rn = 1
-                        -- AÑADIDO: Nos unimos a la nueva CTE de conteo.
-                        LEFT JOIN
-                            ConteoVolantes CV ON CT.ID_CONTRATO = CV.TramiteID
-                        ORDER BY 
-                            CT.FechaRecepcion DESC;
+                            CASE WHEN VR.FolioVolante IS NOT NULL THEN 1 ELSE 0 END AS FlagVolante,
+                            -- Pendientes reales (sin contar 'Vencido')
+                            COALESCE(CVP.TotalPorSolventar, 0) AS VolantesPorSolventar,
+                            -- Bandera de vencidos
+                            CASE WHEN COALESCE(CVV.TotalVencidos, 0) > 0 THEN 1 ELSE 0 END AS VolantesVencidos,
+                            -- (Opcional) Conteo de vencidos si lo quieres visible
+                            COALESCE(CVV.TotalVencidos, 0) AS VolantesVencidosCount
+                        FROM ConsentradoGeneralTramites CT
+                        INNER JOIN InicioSesion ISS ON CT.AnalistaID = ISS.InicioSesionID
+                        JOIN EnlacesAdministrativos EA ON EA.EnlaceID = CT.DependenciaID
+                        LEFT JOIN VolantesRecientes VR 
+                            ON CT.ID_CONTRATO = VR.TramiteID AND VR.rn = 1
+                        LEFT JOIN ConteoVolantesPendientes CVP 
+                            ON CT.ID_CONTRATO = CVP.TramiteID
+                        LEFT JOIN ConteoVolantesVencidos CVV 
+                            ON CT.ID_CONTRATO = CVV.TramiteID
+                        WHERE CT.Mes IN ('Agosto', 'Julio')
+                        ORDER BY CT.FechaRecepcion DESC;
+                    ";
+
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error en obtenerTramitesConAnalista (PDO): " . $e->getMessage());
+            return ['status' => 'error', 'message' => 'Error al consultar los trámites.'];
+        } catch (Exception $e) {
+            error_log("Error general en obtenerTramitesConAnalista: " . $e->getMessage());
+            return ['status' => 'error', 'message' => $e->getMessage()];
+        }
+    }
+    // Obtener todos los trámites + nombre del analista (TODO)
+    public function obtenerTramitesConAnalistaTodo()
+    {
+        try {
+            // Validar que la conexión exista
+            if (!$this->conn) {
+                throw new Exception("No hay conexión activa con la base de datos.");
+            }
+            $query = "
+                        -- Usamos CTEs para (1) último volante, (2) pendientes (sin 'Vencido') y (3) vencidos
+                        WITH 
+                        VolantesRecientes AS (
+                            SELECT
+                                FolioVolante,
+                                TramiteID,
+                                ROW_NUMBER() OVER (PARTITION BY TramiteID ORDER BY FechaEmision DESC) AS rn
+                            FROM VolantesObservaciones
+                        ),
+                        -- Pendientes reales: SOLO 'Creado' y 'Emitido' (excluye 'Vencido')
+                        ConteoVolantesPendientes AS (
+                            SELECT
+                                TramiteID,
+                                COUNT(*) AS TotalPorSolventar
+                            FROM VolantesObservaciones
+                            WHERE EstatusVolante IN ('Creado', 'Emitido')
+                            GROUP BY TramiteID
+                        ),
+                        -- Vencidos (para la bandera y, opcionalmente, el conteo)
+                        ConteoVolantesVencidos AS (
+                            SELECT
+                                TramiteID,
+                                COUNT(*) AS TotalVencidos
+                            FROM VolantesObservaciones
+                            WHERE EstatusVolante = 'Vencido'
+                            GROUP BY TramiteID
+                        )
+
+                        SELECT 
+                            ISS.NombreUser, 
+                            ISS.ApellidoUser,                              
+                            CT.ID_CONTRATO,
+                            CT.Mes,
+                            CT.FechaRecepcion,
+                            CT.TipoTramite,
+                            CT.Proveedor,
+                            CT.Concepto,
+                            CT.Importe,
+                            CT.Estatus,
+                            CT.Comentarios,
+                            CT.Fondo,
+                            CT.FechaLimite,
+                            CT.FechaTurnado,
+                            CT.FechaTurnadoEntrega,
+                            CT.FechaDevuelto,
+                            CT.FechaRemesa,
+                            CT.FechaRemesaAprobada,
+                            CT.AnalistaID,
+                            CT.RemesaNumero,
+                            CT.DocSAP,
+                            CT.IntegraSAP,
+                            CT.OfPeticion,
+                            CT.NoTramite,
+                            CT.DoctacionAnexo,
+                            CT.Analista,
+                            CT.FechaLimitePago,
+                            CT.FK_SRF,
+                            CT.FechaCreacion,
+                            CT.DependenciaID, 	
+                            CT.NumeroObra,						
+                            EA.Secretaria AS Dependencia,							
+                            VR.FolioVolante,                            
+                            CASE WHEN VR.FolioVolante IS NOT NULL THEN 1 ELSE 0 END AS FlagVolante,
+                            -- Pendientes reales (sin contar 'Vencido')
+                            COALESCE(CVP.TotalPorSolventar, 0) AS VolantesPorSolventar,
+                            -- Bandera de vencidos
+                            CASE WHEN COALESCE(CVV.TotalVencidos, 0) > 0 THEN 1 ELSE 0 END AS VolantesVencidos,
+                            -- (Opcional) Conteo de vencidos si lo quieres visible
+                            COALESCE(CVV.TotalVencidos, 0) AS VolantesVencidosCount
+                        FROM ConsentradoGeneralTramites CT
+                        INNER JOIN InicioSesion ISS ON CT.AnalistaID = ISS.InicioSesionID
+                        JOIN EnlacesAdministrativos EA ON EA.EnlaceID = CT.DependenciaID
+                        LEFT JOIN VolantesRecientes VR 
+                            ON CT.ID_CONTRATO = VR.TramiteID AND VR.rn = 1
+                        LEFT JOIN ConteoVolantesPendientes CVP 
+                            ON CT.ID_CONTRATO = CVP.TramiteID
+                        LEFT JOIN ConteoVolantesVencidos CVV 
+                            ON CT.ID_CONTRATO = CVV.TramiteID
+                        ORDER BY CT.FechaRecepcion DESC;
                     ";
 
             $stmt = $this->conn->prepare($query);
@@ -764,7 +865,6 @@ class OrdenesPagoModel
 
             // 6. Obtiene todos los resultados como un array asociativo (estilo PDO)
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
-
         } catch (PDOException $e) {
             // Manejo de errores específico para PDO
             error_log("Error de base de datos en consultarTramitesRezagados: " . $e->getMessage());
@@ -787,7 +887,7 @@ class OrdenesPagoModel
         // ===================================================================
         // PASO 1: LLAMAR AL STORED PROCEDURE PARA OBTENER LOS DATOS COMPLETOS
         // ===================================================================
-        
+
         $mes = $data['mes'] ?? 'Julio';
         $estatusArray = $data['estatus'] ?? [];
         $tipoTramiteArray = $data['tipoTramite'] ?? [];
@@ -822,13 +922,13 @@ class OrdenesPagoModel
                     // Si la columna es un Fondo (empieza con 'F') y tiene un valor numérico > 0
                     if (str_starts_with($columna, 'F') && is_numeric($valor) && floatval($valor) > 0) {
                         $fondosActivos[$columna] = floatval($valor);
-                    } 
+                    }
                     // Si no es un fondo, lo guardamos en los datos base
                     elseif (!str_starts_with($columna, 'F')) {
                         $datosBase[$columna] = $valor;
                     }
                 }
-                
+
                 // Solo añadimos el registro al resultado final si tiene al menos un fondo activo
                 if (!empty($fondosActivos)) {
                     // Añadimos el objeto de fondos a la fila procesada
@@ -838,13 +938,12 @@ class OrdenesPagoModel
             }
 
             return $resultadosProcesados;
-
         } catch (PDOException $e) {
             error_log("Error de BD en estimacionLiquidez: " . $e->getMessage());
             return ["error" => "Error de BD: " . $e->getMessage()];
         } catch (Exception $e) {
             error_log("Error general en estimacionLiquidez: " . $e->getMessage());
             return ['status' => 'error', 'message' => $e->getMessage()];
-        }    
+        }
     }
 }
